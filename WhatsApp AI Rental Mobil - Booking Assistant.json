@@ -1,0 +1,2384 @@
+{
+  "name": "WhatsApp AI Rental Mobil - Booking Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Chatbot WhatsApp Rental Mobil (AI)\nAsisten WhatsApp yang menerima pesan **teks dan voice note**, lalu membantu pelanggan **booking, ubah jadwal, dan batalkan sewa mobil**. Ketersediaan dicek lewat **Google Calendar**, data disimpan di **Google Sheets**.\n\n### Struktur Google Sheet (4 sheet, format kolom Nomor WA = *Plain text*)\n- **Mobil**: Mobil ID | Nama | Plat | Transmisi | Kapasitas | Harga per hari | Aktif (Ya/Tidak)\n- **Pelanggan**: Nomor WA | Nama | No SIM\n- **Booking**: Booking ID | Dibuat | Nama | Nomor WA | Mobil ID | Mobil | Tgl ambil | Tgl kembali | Lokasi antar | Sopir | Total | DP | Status | Batas bayar | Batas epoch | Event ID\n- Status: Menunggu DP, Dikonfirmasi, Berjalan, Selesai, Dibatalkan (DP tidak dibayar), Dibatalkan (pelanggan)\n\n### Setup\n1. Ganti `GANTI_DENGAN_ID_GOOGLE_SHEET` di semua node Google Sheets dengan ID spreadsheet kamu.\n2. Calendar memakai `primary`. Ganti jika ingin kalender khusus.\n3. Ganti Phone Number ID WhatsApp (470271332838881) di semua node WhatsApp.\n4. Pasang kredensial Telegram (token dari @BotFather) lalu ganti `GANTI_CHAT_ID_OWNER` di node **Kirim Telegram ke owner**, **Telegram owner: bayar telat**, dan **Notify: Workflow Error**.\n5. Edit blok **DATA BISNIS** di system message node **Virtual Assistant**.\n6. Ganti `GANTI_TOKEN_RAHASIA` di node **Cek token** (STEP 7).\n7. Batas bayar 5 menit ada di 2 tempat: node **Simpan booking** (kolom Batas bayar dan Batas epoch) dan system message agent.\n",
+        "height": 560,
+        "width": 1392,
+        "color": 7
+      },
+      "id": "681976ea-4d71-4f60-8430-c59e633ea2ef",
+      "name": "Sticky Note8",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        2064
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 5 - Error",
+        "height": 336,
+        "width": 1392,
+        "color": 7
+      },
+      "id": "5caab8a6-5a49-4ccc-9bc2-34e741754b62",
+      "name": "Sticky Note9",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        2672
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 1 - Chat Input\nMessage from chatbot",
+        "height": 368,
+        "width": 1392,
+        "color": 7
+      },
+      "id": "a6820350-ac57-4e8f-ba76-f94fac8233e4",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 1 bis - WhatsApp Input\nPesan teks atau voice note (speech to text) dari WhatsApp",
+        "height": 656,
+        "width": 1392,
+        "color": 7
+      },
+      "id": "b8fb8ef9-6895-46f9-86ef-defba8a83480",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        3440
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 2 - Guardrails\nPesan yang ditolak dibalas lewat WhatsApp atau Chat sesuai asal pesan.",
+        "height": 1056,
+        "width": 880,
+        "color": 7
+      },
+      "id": "235eac53-6d7a-44b2-8c3f-831e28399db3",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        672,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 3 - AI Agent (Testarosa)\nSemua tool memakai Google Sheets, Google Calendar, dan Telegram. Edit blok DATA BISNIS di system message.",
+        "height": 1056,
+        "width": 944,
+        "color": 7
+      },
+      "id": "01e6a32e-5522-4152-87ed-3782d987f5b4",
+      "name": "Sticky Note4",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        3040
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 4 - WhatsApp Response",
+        "height": 496,
+        "width": 1264,
+        "color": 7
+      },
+      "id": "11772d20-e98f-4305-92b9-d71ba5a7c042",
+      "name": "Sticky Note6",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2832,
+        2704
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 4 bis - Chatbot Response",
+        "height": 336,
+        "width": 1264,
+        "color": 7
+      },
+      "id": "4d22551d-5902-471c-b52d-ea28ca4ac357",
+      "name": "Sticky Note7",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2832,
+        3232
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 6 - Batalkan otomatis jika DP tidak dibayar dalam 5 menit\nBerjalan tiap 1 menit. Booking berstatus **Menunggu DP** yang melewati **Batas epoch** dibatalkan: status Sheet diubah, event Calendar dihapus, pelanggan diberi tahu.",
+        "height": 420,
+        "width": 2060,
+        "color": 7
+      },
+      "id": "dae064ad-e652-4668-9287-bbc381a4fdd4",
+      "name": "Sticky Auto",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        4224
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## STEP 7 - Konfirmasi pembayaran (webhook)\nDipanggil payment gateway (Xendit/Midtrans/dll) atau sistem lain dengan body JSON `{\"booking_id\": \"BK-...\"}` dan header `x-callback-token`. Hanya booking berstatus **Menunggu DP** yang dikonfirmasi. Jika booking sudah dibatalkan, owner diberi tahu lewat Telegram.",
+        "height": 660,
+        "width": 2060,
+        "color": 7
+      },
+      "id": "a9ebbc62-204c-4b97-8c53-e173f2fd72ef",
+      "name": "Sticky Bayar",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        4688
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseMode": "responseNodes"
+        }
+      },
+      "id": "97265904-4f3a-476b-98af-0b57b1a3c080",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -672,
+        3200
+      ],
+      "webhookId": "fee41e51-51d1-48bc-a519-b314f300981b"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4a7e40c6-060c-4d69-a7d4-b513edffc245",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.chatInput }}"
+            },
+            {
+              "id": "0757a9ca-e31b-44f5-b795-eaa42ca4f3dc",
+              "name": "sessionId",
+              "type": "string",
+              "value": "={{ $json.sessionId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "86f2543e-1b4a-472c-9119-23f404841ff5",
+      "name": "From Chat",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        3200
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "d1f41c1c-425b-4d0f-966c-4a2e0f611a69",
+      "name": "WhatsApp Trigger",
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        3712
+      ],
+      "webhookId": "d3978cae-2aca-4553-8ac7-ab89068deabc"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "e42062a6-7776-48d0-9e60-c930c3284c68",
+                    "operator": {
+                      "type": "string",
+                      "operation": "exists",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json.messages[0].text.body }}",
+                    "rightValue": ""
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "483ffcee-b0be-4455-ba57-40ce6416f2da",
+                    "operator": {
+                      "type": "object",
+                      "operation": "exists",
+                      "singleValue": true
+                    },
+                    "leftValue": "={{ $json.messages[0].audio }}",
+                    "rightValue": ""
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Voice"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "9ab428f3-bb50-409f-8972-4caf06498845",
+      "name": "Input type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -464,
+        3696
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f4fbc5c3-16db-4169-8cea-e0b4b8689383",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $('WhatsApp Trigger').item.json.messages[0].text.body }}"
+            },
+            {
+              "id": "0caefa33-508c-4ea5-aff1-44aec06085a5",
+              "name": "sessionId",
+              "type": "string",
+              "value": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}"
+            },
+            {
+              "id": "75693260-2ae2-4016-8d86-50d01a1e0b06",
+              "name": "type",
+              "type": "string",
+              "value": "whatsapp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eeea8c0d-d48e-46b3-84f2-54b806f45f1a",
+      "name": "Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        3520
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "media",
+        "operation": "mediaUrlGet",
+        "mediaGetId": "={{ $('WhatsApp Trigger').item.json.messages[0].audio.id }}"
+      },
+      "id": "26466c2a-57c3-4e97-9765-07f4e9c78925",
+      "name": "Get Audio Url",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        3712
+      ],
+      "webhookId": "87caa300-7204-47b5-959a-94f4a8fbf8cf"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "1d16c8c4-ea5c-43f6-b86c-cdd698afbd04",
+      "name": "Download Audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -16,
+        3712
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {
+          "language": "id"
+        }
+      },
+      "id": "8b01991b-19b4-42f7-bb15-96e5ae810fa6",
+      "name": "Transcribe Audio",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        224,
+        3712
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e4c978bb-b70b-4976-a229-1e2630e1f65f",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "id": "144e9422-67e8-4a68-a6d0-33067e974913",
+              "name": "sessionId",
+              "type": "string",
+              "value": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}"
+            },
+            {
+              "id": "91d9b1a9-f83e-4785-a90a-3c6e76571d66",
+              "name": "type",
+              "type": "string",
+              "value": "whatsapp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "71c6e826-d3d5-4e56-b873-dd9c20706ffa",
+      "name": "Audio",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        448,
+        3712
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "470271332838881",
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}",
+        "textBody": "Maaf, saat ini saya hanya bisa membaca pesan teks dan voice note ya 🙏",
+        "additionalFields": {}
+      },
+      "id": "169a7060-f6b6-4e08-9d9b-a787b47edee6",
+      "name": "Not supported",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        3904
+      ],
+      "webhookId": "4f23ff5f-5922-4ea1-a4b5-2c48bf446c81"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c91b0724-7c13-4bc4-9464-1d98e9441f82",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "id": "e43a8cc7-3a43-4d81-b55a-1e633ccce1e6",
+              "name": "sessionId",
+              "type": "string",
+              "value": "={{ $json.sessionId }}"
+            },
+            {
+              "id": "0d838c9f-0d45-4694-b1d0-d3fac6cc5e8c",
+              "name": "type",
+              "type": "string",
+              "value": "={{ $json.type ?? 'chat' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c2104c36-222c-4f90-bef0-81bd47a0e420",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        768,
+        3488
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.message }}",
+        "guardrails": {
+          "jailbreak": {
+            "value": {
+              "threshold": 0.7,
+              "customizePrompt": true
+            }
+          }
+        },
+        "customizeSystemMessage": true
+      },
+      "id": "757247d9-f387-4153-be91-3535c043aaa4",
+      "name": "Guardrails",
+      "type": "@n8n/n8n-nodes-langchain.guardrails",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        3488
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "id": "363d638d-ee54-4d07-89cf-38fbc88e9ac9",
+      "name": "Google Gemini Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        976,
+        3744
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "d9c5cef1-ad42-4071-b0ac-871f604130ca",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $('Normalize').item.json.type }}",
+              "rightValue": "whatsapp"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0c4db576-ce35-45ee-860f-6954accee345",
+      "name": "Dari WhatsApp?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        3760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "470271332838881",
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}",
+        "textBody": "Maaf, pesan tersebut tidak sesuai kebijakan kami atau tidak relevan dengan layanan rental mobil.",
+        "additionalFields": {}
+      },
+      "id": "4e435159-2162-417b-8d3f-c0ccca4e3699",
+      "name": "Send message1",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1392,
+        3776
+      ],
+      "webhookId": "f27fa7b7-a0ec-4a1f-9288-23b89c808e30"
+    },
+    {
+      "parameters": {
+        "message": "Maaf, pesan tersebut tidak sesuai kebijakan kami atau tidak relevan dengan layanan rental mobil.",
+        "options": {}
+      },
+      "id": "6210bd3e-b147-4d08-ae9e-93f62ad57848",
+      "name": "Chat1",
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1.2,
+      "position": [
+        1392,
+        3648
+      ],
+      "webhookId": "83a401e2-d083-4264-95ab-e960020f28cc"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.guardrailsInput }}",
+        "options": {
+          "systemMessage": "=# PERAN\nKamu adalah Testarosa, asisten virtual WhatsApp dari rental mobil \"Maju Jaya Rental\". Tugasmu membantu pelanggan memesan, mengubah jadwal, dan membatalkan sewa mobil. Gunakan bahasa Indonesia yang ramah, singkat, dan jelas. Format WhatsApp: gunakan *tebal* untuk poin penting, jangan memakai heading atau tabel markdown, dan jaga pesan tetap ringkas. Tanyakan maksimal 2-3 hal sekaligus.\n\n# DATA BISNIS (EDIT BAGIAN INI)\n- Nama rental: Maju Jaya Rental\n- Lokasi ambil mobil: Jl. Contoh No. 1 (garasi)\n- Jam operasional: 07.00 - 21.00 WIB\n- Hitungan sewa: per 24 jam. Kelebihan lebih dari 3 jam dihitung tambah 1 hari.\n- Sewa dengan sopir: tambah Rp 250.000 per hari. Tanpa sopir (lepas kunci) wajib bawa KTP dan SIM A asli.\n- Antar mobil: gratis di dalam kota, di luar kota hubungi tim.\n- DP: 30% dari total sewa, dibulatkan ke ribuan terdekat.\n- Batas bayar DP: 5 menit setelah booking dibuat. Jika lewat, booking DIBATALKAN OTOMATIS oleh sistem.\n- Cara bayar DP: transfer ke BCA 1234567890 a.n. Maju Jaya Rental.\n- Kebijakan pembatalan: DP tidak dikembalikan jika dibatalkan kurang dari 24 jam sebelum waktu ambil.\n\n# INFO SISTEM\n- Sekarang: {{ $now.setLocale('id').toFormat('cccc, dd LLLL yyyy') }} pukul {{ $now.toFormat('HH:mm') }} WIB (UTC+7).\n- Booking ID untuk booking baru pada pesan ini: BK-{{ $now.toFormat('yyMMddHHmmss') }}\n- Jika booking dibuat sekarang, batas bayar DP adalah pukul {{ $now.plus({ minutes: 5 }).toFormat('HH:mm') }} WIB.\n- Nomor WhatsApp pelanggan: {{ $('Normalize').item.json.sessionId }}\n\n# TOOLS\n- Cek pelanggan: cek apakah pelanggan sudah terdaftar (berdasarkan nomor WA).\n- Simpan pelanggan: simpan nama dan nomor SIM pelanggan baru.\n- Daftar mobil: daftar mobil aktif beserta harga per hari, transmisi, dan kapasitas.\n- Cek ketersediaan mobil: cek apakah satu mobil bentrok pada rentang waktu tertentu. Hasil KOSONG berarti tersedia. Ada hasil berarti tidak tersedia.\n- Buat event booking: tahan mobil di kalender.\n- Ubah event booking: ubah jadwal atau judul event.\n- Hapus event booking: hapus event saat booking dibatalkan.\n- Simpan booking: catat booking baru di sistem.\n- Booking saya: lihat semua booking milik pelanggan ini.\n- Ubah data booking: ubah status atau jadwal booking di sistem.\n- Calculator: hitung jumlah hari, total, dan DP. Jangan menghitung sendiri.\n- Kirim Telegram ke owner: kirim pemberitahuan ke owner lewat Telegram.\n\n# ATURAN UMUM\n1. SELALU panggil `Cek pelanggan` lebih dulu di setiap percakapan. Jika belum terdaftar, minta nama lengkap sesuai KTP/SIM dan nomor SIM, lalu panggil `Simpan pelanggan`. Cek chat_history dulu agar tidak bertanya dua kali.\n2. Jangan pernah menyatakan sebuah mobil tersedia tanpa memanggil `Cek ketersediaan mobil`.\n3. Jangan pernah menyatakan pembayaran sudah diterima. Status dikonfirmasi hanya diubah oleh sistem otomatis. Jika pelanggan bilang sudah transfer, katakan pembayaran sedang dicek, lalu panggil `Kirim Telegram ke owner`.\n4. Semua tanggal yang dikirim ke tool memakai format ISO 8601 dengan zona WIB, contoh 2026-10-20T09:00:00+07:00. Jika pelanggan menyebut hari (misal \"Kamis\"), hitung tanggal pastinya dari tanggal hari ini dan konfirmasi sebelum membuat booking.\n5. Jam ambil dan kembali harus dalam jam operasional. Jika tidak, tawarkan jam terdekat.\n\n# BOOKING BARU\n1. Kumpulkan: tanggal dan jam ambil, tanggal dan jam kembali, lokasi (ambil di garasi atau diantar, alamatnya), dengan atau tanpa sopir, jumlah penumpang, dan preferensi mobil. Tanyakan hanya yang belum diketahui.\n2. Panggil `Daftar mobil`, pilih yang cocok dengan kapasitas dan preferensi.\n3. Untuk setiap mobil kandidat, panggil `Cek ketersediaan mobil` dengan Waktu_ambil, Waktu_kembali, dan Mobil_ID. Tawarkan 2-3 mobil yang tersedia beserta harga per hari.\n4. Hitung dengan `Calculator`: jumlah hari, total (harga per hari x jumlah hari, ditambah biaya sopir per hari jika pakai sopir), dan DP 30%.\n5. Tampilkan ringkasan (mobil, jadwal, lokasi, total, DP, batas bayar jam yang tertera di INFO SISTEM) dan minta konfirmasi \"Lanjut booking?\".\n6. Setelah pelanggan setuju, lakukan BERURUTAN dalam satu giliran:\n   a. `Buat event booking`. Judul: [MENUNGGU DP] Mobil_ID | Nama mobil | Nama pelanggan | Booking ID. Deskripsi: Booking ID, nama, nomor WA, lokasi, sopir, total, DP.\n   b. `Simpan booking` dengan Booking ID dari INFO SISTEM dan Event ID dari hasil langkah a.\n   c. `Kirim Telegram ke owner` (booking baru: ringkasan singkat).\n   d. Balas pelanggan dengan Booking ID, total, DP, cara bayar, dan batas bayar. Tegaskan bahwa lewat batas bayar booking otomatis dibatalkan.\n\n# UBAH JADWAL\n1. Panggil `Booking saya`, cari booking aktif (status Menunggu DP atau Dikonfirmasi). Booking berstatus Berjalan, Selesai, atau Dibatalkan tidak bisa diubah. Jika lebih dari satu, tanya mana yang dimaksud. Verifikasi data yang disebut pelanggan dengan data di sistem.\n2. Tanyakan jadwal baru, lalu panggil `Cek ketersediaan mobil`. Abaikan event milik booking pelanggan itu sendiri. Jika mobil tidak tersedia, tawarkan mobil lain atau tanggal lain.\n3. Hitung ulang total dengan `Calculator`. Panggil `Ubah event booking` (judul tetap, ganti waktu) lalu `Ubah data booking` (Tgl ambil, Tgl kembali, Total; isi nilai lama untuk yang tidak berubah).\n4. Jika total berubah, beri tahu selisihnya dan katakan tim akan menghubungi untuk penyelesaian. Panggil `Kirim Telegram ke owner`.\n\n# BATALKAN\n1. Panggil `Booking saya`, tentukan booking yang dimaksud, lalu minta konfirmasi pembatalan beserta kebijakan DP.\n2. Setelah dikonfirmasi: `Hapus event booking` (Event ID dari sistem), lalu `Ubah data booking` dengan Status \"Dibatalkan (pelanggan)\", lalu `Kirim Telegram ke owner`.\n\n# PERMINTAAN LAIN\nUntuk hal di luar booking, ubah jadwal, dan pembatalan (nego harga, komplain, kerusakan, perpanjangan mendadak, dll), katakan tim akan segera menghubungi, lalu langsung panggil `Kirim Telegram ke owner` tanpa meminta konfirmasi. Pertanyaan tentang mobil, harga, dan syarat sewa dijawab dari DATA BISNIS dan `Daftar mobil`.\n\n# CONTOH GAYA JAWAB\nPelanggan: Mau sewa mobil buat besok\nTestarosa: Halo kak, saya Testarosa dari Maju Jaya Rental 😊 Boleh tahu: 1) jam ambil dan kapan dikembalikan? 2) diambil di garasi atau diantar? 3) dengan sopir atau lepas kunci?\n\nTestarosa (setelah booking): Booking berhasil dibuat ✅\n*ID: BK-...*\nAvanza | 20 Okt 09.00 - 22 Okt 09.00 (2 hari)\nTotal Rp 700.000, *DP Rp 210.000*\nMohon transfer DP ke BCA 1234567890 a.n. Maju Jaya Rental sebelum *pukul 14.25 WIB*. Lewat dari itu booking otomatis dibatalkan ya kak.",
+          "maxIterations": 20
+        }
+      },
+      "id": "f2242565-e543-40da-8556-cd30582d87a7",
+      "name": "Virtual Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1776,
+        3152
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite-preview",
+        "options": {}
+      },
+      "id": "d348aabb-b9d5-47b2-820d-c5799e555179",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1696,
+        3424
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normalize').item.json.sessionId }}",
+        "contextWindowLength": 15
+      },
+      "id": "38fd9233-5c13-4c12-9a41-c77588e23e34",
+      "name": "Postgres Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        1824,
+        3424
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cek apakah pelanggan dengan nomor WhatsApp ini sudah terdaftar. Jika tidak ada hasil berarti pelanggan baru.",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Pelanggan"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Nomor WA",
+              "lookupValue": "={{ $('Normalize').item.json.sessionId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "04a726c2-c4f5-4460-b0c6-31d7acd6744c",
+      "name": "Cek pelanggan",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        1952,
+        3424
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Simpan atau perbarui data pelanggan baru (nama dan nomor SIM).",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Pelanggan"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Nomor WA": "={{ $('Normalize').item.json.sessionId }}",
+            "Nama": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Nama', `Nama lengkap pelanggan sesuai KTP atau SIM`, 'string') }}",
+            "No SIM": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('No_SIM', `Nomor SIM pelanggan`, 'string') }}"
+          },
+          "matchingColumns": [
+            "Nomor WA"
+          ],
+          "schema": [
+            {
+              "id": "Nomor WA",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Nomor WA",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Nama",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Nama",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "No SIM",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "No SIM",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "7ff1c1f0-3e94-477f-af16-275e619097af",
+      "name": "Simpan pelanggan",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        2144,
+        3424
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Ambil daftar mobil yang aktif: Mobil ID, nama, plat, transmisi, kapasitas, dan harga per hari.",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Mobil"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Aktif",
+              "lookupValue": "Ya"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "07d2f987-2010-4600-97f3-8c6f4f5804fd",
+      "name": "Daftar mobil",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        2320,
+        3424
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cek apakah SATU mobil bentrok dengan booking lain pada rentang waktu tertentu. Jika hasil KOSONG berarti mobil tersedia. Jika ada hasil berarti mobil tidak tersedia.",
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "primary"
+        },
+        "returnAll": true,
+        "timeMin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Waktu_ambil', `Waktu pengambilan mobil, format ISO 8601 zona WIB, contoh 2026-10-20T09:00:00+07:00`, 'string') }}",
+        "timeMax": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Waktu_kembali', `Waktu pengembalian mobil, format ISO 8601 zona WIB, contoh 2026-10-22T09:00:00+07:00`, 'string') }}",
+        "options": {
+          "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Mobil_ID', `ID mobil yang dicek, contoh M01`, 'string') }}",
+          "timeZone": {
+            "__rl": true,
+            "mode": "list",
+            "value": "Asia/Jakarta",
+            "cachedResultName": "Asia/Jakarta"
+          }
+        }
+      },
+      "id": "962ad216-b221-4ff9-947b-2d67642365ff",
+      "name": "Cek ketersediaan mobil",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        1952,
+        3584
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Buat event kalender untuk menahan mobil. Judul wajib berformat: [MENUNGGU DP] Mobil_ID | Nama mobil | Nama pelanggan | Booking ID.",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "primary"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', `Waktu ambil, format ISO 8601 zona WIB, contoh 2026-10-20T09:00:00+07:00`, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', `Waktu kembali, format ISO 8601 zona WIB, contoh 2026-10-22T09:00:00+07:00`, 'string') }}",
+        "additionalFields": {
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', `Booking ID, nama, nomor WA, lokasi, sopir, total, DP`, 'string') }}",
+          "location": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Location', `Lokasi pengantaran atau pengambilan`, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', `Format: [MENUNGGU DP] M01 | Avanza 2022 | Nama Pelanggan | BK-xxxxxxxxxxxx`, 'string') }}"
+        }
+      },
+      "id": "e3236f77-42eb-4aab-b799-03539f4399ae",
+      "name": "Buat event booking",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        3584
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Ubah jadwal event booking yang sudah ada.",
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "primary"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', `Event ID dari data booking di sistem`, 'string') }}",
+        "updateFields": {
+          "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', `Waktu kembali baru, format ISO 8601 zona WIB`, 'string') }}",
+          "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', `Waktu ambil baru, format ISO 8601 zona WIB`, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', `Judul event. Isi judul lama jika tidak berubah`, 'string') }}"
+        }
+      },
+      "id": "971f5311-4eaf-43d3-a010-8a6dceaf90ae",
+      "name": "Ubah event booking",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        2320,
+        3584
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Hapus event kalender saat booking dibatalkan pelanggan.",
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "primary"
+        },
+        "eventId": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', `Event ID dari data booking di sistem`, 'string') }}",
+        "options": {}
+      },
+      "id": "a348a3c4-89d0-4c51-94de-e2b5b7e5cb09",
+      "name": "Hapus event booking",
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        1952,
+        3744
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Catat booking baru di sistem setelah event kalender dibuat. Status otomatis Menunggu DP dan batas bayar otomatis 5 menit.",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Booking"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Booking ID": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Booking_ID', `Booking ID dari bagian INFO SISTEM pada system message`, 'string') }}",
+            "Dibuat": "={{ $now.toFormat('dd/LL/yyyy HH:mm:ss') }}",
+            "Nama": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Nama', `Nama lengkap pelanggan`, 'string') }}",
+            "Nomor WA": "={{ $('Normalize').item.json.sessionId }}",
+            "Mobil ID": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Mobil_ID', `ID mobil, contoh M01`, 'string') }}",
+            "Mobil": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Mobil', `Nama mobil`, 'string') }}",
+            "Tgl ambil": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Tgl_ambil', `Tanggal dan jam ambil, format ISO 8601 zona WIB`, 'string') }}",
+            "Tgl kembali": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Tgl_kembali', `Tanggal dan jam kembali, format ISO 8601 zona WIB`, 'string') }}",
+            "Lokasi antar": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Lokasi_antar', `Lokasi ambil atau alamat pengantaran`, 'string') }}",
+            "Sopir": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Sopir', `Ya atau Tidak`, 'string') }}",
+            "Total": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Total', `Total biaya sewa dalam rupiah, angka saja, hasil dari Calculator`, 'number') }}",
+            "DP": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('DP', `Nominal DP 30 persen dalam rupiah, angka saja, hasil dari Calculator`, 'number') }}",
+            "Status": "Menunggu DP",
+            "Batas bayar": "={{ $now.plus({ minutes: 5 }).toFormat('dd/LL/yyyy HH:mm:ss') }}",
+            "Batas epoch": "={{ Math.floor($now.plus({ minutes: 5 }).toSeconds()) }}",
+            "Event ID": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Event_ID', `Event ID dari hasil tool Buat event booking`, 'string') }}"
+          },
+          "matchingColumns": [
+            "Booking ID"
+          ],
+          "schema": [
+            {
+              "id": "Booking ID",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Booking ID",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Dibuat",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Dibuat",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Nama",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Nama",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Nomor WA",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Nomor WA",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Mobil ID",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Mobil ID",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Mobil",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Mobil",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tgl ambil",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Tgl ambil",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tgl kembali",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Tgl kembali",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Lokasi antar",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Lokasi antar",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Sopir",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Sopir",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "displayName": "Total",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DP",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "displayName": "DP",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Batas bayar",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Batas bayar",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Batas epoch",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "displayName": "Batas epoch",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Event ID",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Event ID",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "44e2dec9-1198-4fe1-9fe4-2e44cea42f9c",
+      "name": "Simpan booking",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        2144,
+        3744
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Ambil semua booking milik pelanggan ini, lengkap dengan status dan Event ID.",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Booking"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Nomor WA",
+              "lookupValue": "={{ $('Normalize').item.json.sessionId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "580e03b1-20f0-4d83-895e-dd21459918ef",
+      "name": "Booking saya",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        2320,
+        3744
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Ubah status atau jadwal booking yang sudah ada di sistem.",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Booking"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Booking ID": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Booking_ID', `Booking ID yang akan diubah`, 'string') }}",
+            "Status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Status', `Status baru. Untuk pembatalan oleh pelanggan isi: Dibatalkan (pelanggan). Jika tidak berubah isi status lama`, 'string') }}",
+            "Tgl ambil": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Tgl_ambil', `Tanggal ambil. Isi nilai lama jika tidak berubah`, 'string') }}",
+            "Tgl kembali": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Tgl_kembali', `Tanggal kembali. Isi nilai lama jika tidak berubah`, 'string') }}",
+            "Total": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Total', `Total sewa. Isi nilai lama jika tidak berubah`, 'number') }}"
+          },
+          "matchingColumns": [
+            "Booking ID"
+          ],
+          "schema": [
+            {
+              "id": "Booking ID",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Booking ID",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tgl ambil",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Tgl ambil",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Tgl kembali",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Tgl kembali",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Total",
+              "type": "number",
+              "display": true,
+              "required": false,
+              "displayName": "Total",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "5fa80e52-fc9f-43a4-b078-ab3bd2ee40f2",
+      "name": "Ubah data booking",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.7,
+      "position": [
+        1952,
+        3904
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "971c3367-94e7-4ba1-8316-b82382d845a8",
+      "name": "Calculator",
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        2144,
+        3904
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Kirim pesan Telegram ke owner: booking baru, perubahan jadwal, pembatalan, pelanggan mengaku sudah bayar, atau permintaan di luar booking.",
+        "chatId": "GANTI_CHAT_ID_OWNER",
+        "text": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Text', `Isi pemberitahuan untuk owner: jenis kejadian (booking baru, ubah jadwal, pembatalan, pelanggan mengaku sudah bayar, atau permintaan lain), Booking ID, nama, nomor WA, dan detail singkat. Teks biasa tanpa format khusus`, 'string') }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "e3e3565c-f12d-45e5-9f17-009285934141",
+      "name": "Kirim Telegram ke owner",
+      "type": "n8n-nodes-base.telegramTool",
+      "typeVersion": 1.2,
+      "position": [
+        2320,
+        3904
+      ],
+      "webhookId": "a31f2a3b-d35b-4d7c-b805-bfe93c309bd2"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "25de4b89-1747-4d57-8534-1a6481c01dd4",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $('Normalize').item.json.type }}",
+                    "rightValue": "whatsapp"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "WhatsApp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "84572a2c-e463-499f-b87a-2f094f3f7dfc",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $('Normalize').item.json.type }}",
+                    "rightValue": "chat"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Chat"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7813179d-8828-4fe1-9bcc-10fd159dea18",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2560,
+        3152
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "4cdd2e49-5cf4-455a-83a0-18d8720df9db",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              },
+              "leftValue": "={{ $('WhatsApp Trigger').item.json.messages[0].audio }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fd900ec7-69e5-4dea-a946-749c3de4dd35",
+      "name": "From audio to audio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2976,
+        2896
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "input": "={{ $('Virtual Assistant').item.json.output }}",
+        "voice": "onyx",
+        "options": {}
+      },
+      "id": "ba7210e8-4fc7-426c-a100-2d3ed175fb73",
+      "name": "Generate Audio Response",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        3376,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n  if (item.binary) {\n    const binaryPropertyNames = Object.keys(item.binary);\n    for (const propName of binaryPropertyNames) {\n      if (item.binary[propName].mimeType === 'audio/mp3') {\n        item.binary[propName].mimeType = 'audio/mpeg';\n      }\n    }\n  }\n}\n\nreturn $input.all();"
+      },
+      "id": "50794331-7165-474f-8b92-4a315570ac7c",
+      "name": "Fix mimeType for Audio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3600,
+        2784
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "470271332838881",
+        "recipientPhoneNumber": "={{ $('Input type').item.json.contacts[0].wa_id }}",
+        "messageType": "audio",
+        "mediaPath": "useMedian8n",
+        "additionalFields": {}
+      },
+      "id": "ec6a416d-4554-4cbd-8b40-9c6c960b2573",
+      "name": "Send audio",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        3824,
+        2784
+      ],
+      "webhookId": "bc15276d-54e2-4a33-bf45-2675afd99b27"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "470271332838881",
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.messages[0].from }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "id": "212d70db-4a33-4ce5-9e88-43d2b114e651",
+      "name": "Send message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        3376,
+        2976
+      ],
+      "webhookId": "275435f7-096f-4666-b7da-54c06ac94667"
+    },
+    {
+      "parameters": {
+        "message": "={{$json.output}}",
+        "options": {}
+      },
+      "id": "417f486d-d7e7-4ba3-a245-c853d9d75292",
+      "name": "Chat",
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1.2,
+      "position": [
+        2960,
+        3360
+      ],
+      "webhookId": "83a401e2-d083-4264-95ab-e960020f28cc"
+    },
+    {
+      "parameters": {},
+      "id": "dbd03f64-1eca-468d-a6e4-458f046f9a27",
+      "name": "Workflow Error Handler",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        2832
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "GANTI_CHAT_ID_OWNER",
+        "text": "=🔴 Error chatbot Rental Mobil\n\nPesan: {{ $json.execution.error.message }}\nNode terakhir: {{ $json.execution.lastNodeExecuted }}\n\nCek menu Executions di n8n untuk detail.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ff55db06-3131-4b04-bdf9-a4728eea7285",
+      "name": "Notify: Workflow Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        2832
+      ],
+      "webhookId": "9cdd65b4-63fb-4ae0-8224-baf7b47c2169"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "a6359723-74fb-461c-87ca-477f566958d7",
+      "name": "Cek Tiap Menit",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -688,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Booking"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Menunggu DP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2883a253-ac06-4307-b004-beec4a41cbb4",
+      "name": "Ambil booking menunggu DP",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -416,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "76d2c0d0-4750-4a0a-96b7-fbba133c2a0b",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "leftValue": "={{ Number($json['Batas epoch']) < $now.toSeconds() }}",
+              "rightValue": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4ce722b7-7add-4b1c-84e4-cc385034f4f8",
+      "name": "Lewat batas bayar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -128,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Booking"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Booking ID": "={{ $json['Booking ID'] }}",
+            "Status": "Dibatalkan (DP tidak dibayar)"
+          },
+          "matchingColumns": [
+            "Booking ID"
+          ],
+          "schema": [
+            {
+              "id": "Booking ID",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Booking ID",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "0122e0a6-3974-4919-9a4e-13ebc2921f3c",
+      "name": "Batalkan di Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        160,
+        4416
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "primary"
+        },
+        "eventId": "={{ $('Lewat batas bayar?').item.json['Event ID'] }}",
+        "options": {}
+      },
+      "id": "f8caee5c-e203-4519-b847-cfe9e4f76ec6",
+      "name": "Hapus event kalender",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        432,
+        4416
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "470271332838881",
+        "recipientPhoneNumber": "={{ $('Lewat batas bayar?').item.json['Nomor WA'] }}",
+        "textBody": "=Halo kak {{ $('Lewat batas bayar?').item.json['Nama'] }}, booking *{{ $('Lewat batas bayar?').item.json['Booking ID'] }}* ({{ $('Lewat batas bayar?').item.json['Mobil'] }}) kami batalkan otomatis karena DP belum diterima dalam 5 menit. Jika masih ingin menyewa, silakan chat lagi ya, kami bantu booking ulang 🙏",
+        "additionalFields": {}
+      },
+      "id": "b3434f22-4c2f-4f73-b473-4a071ca3e007",
+      "name": "Kabari pelanggan batal",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        4416
+      ],
+      "webhookId": "19fb4b55-6a94-4607-a428-fd138b982bc7"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "konfirmasi-bayar",
+        "options": {}
+      },
+      "id": "186b1686-74bc-414f-9f80-7cd227fb0580",
+      "name": "Webhook Pembayaran",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -688,
+        4928
+      ],
+      "webhookId": "47273f39-c920-4a96-9aa2-f00487aa2e2a"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "2d7214dc-3658-421a-82d0-0717c7efd6a5",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.headers['x-callback-token'] }}",
+              "rightValue": "GANTI_TOKEN_RAHASIA"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "dc7138e7-54fd-4c40-8d0e-c78b8db39636",
+      "name": "Cek token",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -416,
+        4928
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Booking"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Booking ID",
+              "lookupValue": "={{ $('Webhook Pembayaran').item.json.body.booking_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "de02b235-d345-4462-87a1-8a204d2accb3",
+      "name": "Ambil booking",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -128,
+        4928
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "28e8fc49-f0d6-4d4b-a975-debf930cee07",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.Status }}",
+              "rightValue": "Menunggu DP"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "243507b2-1320-4ef2-981d-70c04ddf7e96",
+      "name": "Masih menunggu DP?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        4928
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "GANTI_DENGAN_ID_GOOGLE_SHEET"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Booking"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Booking ID": "={{ $json['Booking ID'] }}",
+            "Status": "Dikonfirmasi"
+          },
+          "matchingColumns": [
+            "Booking ID"
+          ],
+          "schema": [
+            {
+              "id": "Booking ID",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Booking ID",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "type": "string",
+              "display": true,
+              "required": false,
+              "displayName": "Status",
+              "defaultMatch": false,
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "RAW"
+        }
+      },
+      "id": "a7a71191-3761-4e40-8a2a-b5d33e7ed27e",
+      "name": "Set Dikonfirmasi",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        432,
+        4816
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "calendar": {
+          "__rl": true,
+          "mode": "id",
+          "value": "primary"
+        },
+        "eventId": "={{ $('Ambil booking').item.json['Event ID'] }}",
+        "updateFields": {
+          "summary": "=[DIKONFIRMASI] {{ $('Ambil booking').item.json['Mobil ID'] }} | {{ $('Ambil booking').item.json['Mobil'] }} | {{ $('Ambil booking').item.json['Nama'] }} | {{ $('Ambil booking').item.json['Booking ID'] }}"
+        }
+      },
+      "id": "467c6f41-944d-4891-8689-f50cf86c2ce2",
+      "name": "Update judul event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        720,
+        4816
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "470271332838881",
+        "recipientPhoneNumber": "={{ $('Ambil booking').item.json['Nomor WA'] }}",
+        "textBody": "=✅ DP untuk booking *{{ $('Ambil booking').item.json['Booking ID'] }}* sudah kami terima. {{ $('Ambil booking').item.json['Mobil'] }} siap untuk jadwal {{ $('Ambil booking').item.json['Tgl ambil'] }} s/d {{ $('Ambil booking').item.json['Tgl kembali'] }}. Terima kasih kak {{ $('Ambil booking').item.json['Nama'] }}! 🚗",
+        "additionalFields": {}
+      },
+      "id": "5aa49d38-80f6-4611-91cc-946153fe6271",
+      "name": "Konfirmasi ke pelanggan",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        992,
+        4816
+      ],
+      "webhookId": "ef3379c1-a685-4b2f-bc2f-24f59f5401f5"
+    },
+    {
+      "parameters": {
+        "chatId": "GANTI_CHAT_ID_OWNER",
+        "text": "=⚠️ Pembayaran masuk untuk booking yang sudah tidak aktif\n\nBooking ID: {{ $('Ambil booking').item.json['Booking ID'] }}\nNama: {{ $('Ambil booking').item.json['Nama'] }}\nWA: {{ $('Ambil booking').item.json['Nomor WA'] }}\nStatus sekarang: {{ $('Ambil booking').item.json['Status'] }}\n\nMohon dicek manual: proses ulang booking atau refund.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3d53024f-c6cd-47b6-9a65-16fbcb21ea31",
+      "name": "Telegram owner: bayar telat",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        432,
+        5056
+      ],
+      "webhookId": "04b4d1a4-36ae-4943-b778-ee0e9fb6ed5d"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "From Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From Chat": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Input type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Audio Url": {
+      "main": [
+        [
+          {
+            "node": "Download Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Audio": {
+      "main": [
+        [
+          {
+            "node": "Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audio": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "Guardrails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrails": {
+      "main": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dari WhatsApp?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dari WhatsApp?": {
+      "main": [
+        [
+          {
+            "node": "Send message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chat1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Virtual Assistant": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Error Handler": {
+      "main": [
+        [
+          {
+            "node": "Notify: Workflow Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Audio Response": {
+      "main": [
+        [
+          {
+            "node": "Fix mimeType for Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix mimeType for Audio": {
+      "main": [
+        [
+          {
+            "node": "Send audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek Tiap Menit": {
+      "main": [
+        [
+          {
+            "node": "Ambil booking menunggu DP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil booking menunggu DP": {
+      "main": [
+        [
+          {
+            "node": "Lewat batas bayar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lewat batas bayar?": {
+      "main": [
+        [
+          {
+            "node": "Batalkan di Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Batalkan di Sheet": {
+      "main": [
+        [
+          {
+            "node": "Hapus event kalender",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hapus event kalender": {
+      "main": [
+        [
+          {
+            "node": "Kabari pelanggan batal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Pembayaran": {
+      "main": [
+        [
+          {
+            "node": "Cek token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek token": {
+      "main": [
+        [
+          {
+            "node": "Ambil booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil booking": {
+      "main": [
+        [
+          {
+            "node": "Masih menunggu DP?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Masih menunggu DP?": {
+      "main": [
+        [
+          {
+            "node": "Set Dikonfirmasi",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram owner: bayar telat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Dikonfirmasi": {
+      "main": [
+        [
+          {
+            "node": "Update judul event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update judul event": {
+      "main": [
+        [
+          {
+            "node": "Konfirmasi ke pelanggan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input type": {
+      "main": [
+        [
+          {
+            "node": "Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Audio Url",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not supported",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "From audio to audio?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "From audio to audio?": {
+      "main": [
+        [
+          {
+            "node": "Generate Audio Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek pelanggan": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simpan pelanggan": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daftar mobil": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek ketersediaan mobil": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buat event booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ubah event booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hapus event booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simpan booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Booking saya": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ubah data booking": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim Telegram ke owner": {
+      "ai_tool": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Guardrails",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Virtual Assistant",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a96639dc-3b76-49a6-afeb-90996f6fed6f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "6UOCgjVoFiJ1KRhL",
+  "tags": []
+}
